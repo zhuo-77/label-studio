@@ -623,3 +623,153 @@ class TestTaskAgreementAPI(APITestCase):
         data = response.json()
         assert data['total_annotations'] == 1
         assert data['distributions']['label']['labels'] == {'Car': 3}
+
+
+class TestAnnotationReviewAPI(APITestCase):
+    """Tests for the annotation review system."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.organization = OrganizationFactory()
+        cls.project = ProjectFactory(organization=cls.organization)
+        cls.user = cls.organization.created_by
+
+    def test_list_reviews_empty(self):
+        """Test listing reviews on annotation with no reviews."""
+        task = TaskFactory(project=self.project, data={'text': 'test'})
+        annotation = AnnotationFactory(task=task, project=self.project, completed_by=self.user)
+
+        self.client.force_authenticate(user=self.user)
+        response = self.client.get(f'/api/annotations/{annotation.id}/reviews/')
+        assert response.status_code == 200
+        assert response.json() == []
+
+    def test_create_review(self):
+        """Test creating a review on an annotation."""
+        task = TaskFactory(project=self.project, data={'text': 'test'})
+        annotation = AnnotationFactory(task=task, project=self.project, completed_by=self.user)
+
+        self.client.force_authenticate(user=self.user)
+        response = self.client.post(
+            f'/api/annotations/{annotation.id}/reviews/',
+            data={'text': 'This label looks incorrect', 'annotation': annotation.id},
+            format='json',
+        )
+        assert response.status_code == 201
+        data = response.json()
+        assert data['text'] == 'This label looks incorrect'
+        assert data['is_resolved'] is False
+        assert data['annotation'] == annotation.id
+        assert data['created_by'] == self.user.id
+
+    def test_create_review_updates_task_count(self):
+        """Test that creating a review updates the unresolved_review_count on the task."""
+        task = TaskFactory(project=self.project, data={'text': 'test'})
+        annotation = AnnotationFactory(task=task, project=self.project, completed_by=self.user)
+
+        self.client.force_authenticate(user=self.user)
+        self.client.post(
+            f'/api/annotations/{annotation.id}/reviews/',
+            data={'text': 'Review 1', 'annotation': annotation.id},
+            format='json',
+        )
+        task.refresh_from_db()
+        assert task.unresolved_review_count == 1
+
+        self.client.post(
+            f'/api/annotations/{annotation.id}/reviews/',
+            data={'text': 'Review 2', 'annotation': annotation.id},
+            format='json',
+        )
+        task.refresh_from_db()
+        assert task.unresolved_review_count == 2
+
+    def test_resolve_review(self):
+        """Test resolving a review."""
+        task = TaskFactory(project=self.project, data={'text': 'test'})
+        annotation = AnnotationFactory(task=task, project=self.project, completed_by=self.user)
+
+        self.client.force_authenticate(user=self.user)
+        response = self.client.post(
+            f'/api/annotations/{annotation.id}/reviews/',
+            data={'text': 'Needs fix', 'annotation': annotation.id},
+            format='json',
+        )
+        review_id = response.json()['id']
+
+        # Resolve the review
+        response = self.client.patch(
+            f'/api/reviews/{review_id}/',
+            data={'is_resolved': True},
+            format='json',
+        )
+        assert response.status_code == 200
+        assert response.json()['is_resolved'] is True
+
+        # Check task count updated
+        task.refresh_from_db()
+        assert task.unresolved_review_count == 0
+
+    def test_delete_review(self):
+        """Test deleting a review."""
+        task = TaskFactory(project=self.project, data={'text': 'test'})
+        annotation = AnnotationFactory(task=task, project=self.project, completed_by=self.user)
+
+        self.client.force_authenticate(user=self.user)
+        response = self.client.post(
+            f'/api/annotations/{annotation.id}/reviews/',
+            data={'text': 'Needs fix', 'annotation': annotation.id},
+            format='json',
+        )
+        review_id = response.json()['id']
+        task.refresh_from_db()
+        assert task.unresolved_review_count == 1
+
+        # Delete the review
+        response = self.client.delete(f'/api/reviews/{review_id}/')
+        assert response.status_code == 204
+
+        # Check task count updated
+        task.refresh_from_db()
+        assert task.unresolved_review_count == 0
+
+
+class TestTaskPositionAPI(APITestCase):
+    """Tests for the task position endpoint."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.organization = OrganizationFactory()
+        cls.project = ProjectFactory(organization=cls.organization)
+        cls.user = cls.organization.created_by
+
+    def test_get_task_position(self):
+        """Test getting a task's position within a project."""
+        task1 = TaskFactory(project=self.project, data={'text': 'first'})
+        task2 = TaskFactory(project=self.project, data={'text': 'second'})
+        task3 = TaskFactory(project=self.project, data={'text': 'third'})
+
+        self.client.force_authenticate(user=self.user)
+        response = self.client.get(
+            f'/api/projects/{self.project.id}/task-position/',
+            {'task_id': task2.id},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data['total'] == 3
+        assert data['position'] is not None
+        assert data['project_id'] == self.project.id
+
+    def test_get_task_position_without_task_id(self):
+        """Test getting project total without specific task position."""
+        TaskFactory(project=self.project, data={'text': 'test1'})
+        TaskFactory(project=self.project, data={'text': 'test2'})
+
+        self.client.force_authenticate(user=self.user)
+        response = self.client.get(
+            f'/api/projects/{self.project.id}/task-position/',
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data['total'] == 2
+        assert data['position'] is None
