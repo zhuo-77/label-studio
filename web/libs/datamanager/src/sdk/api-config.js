@@ -177,5 +177,29 @@ export const APIConfig = {
       path: "/../comments/:id",
       method: "delete",
     },
+
+    /** List annotation reviews **/
+    listReviews: "/../annotations/:annotationID/reviews",
+
+    /** Create a new annotation review **/
+    createReview: {
+      path: "/../annotations/:annotationID/reviews",
+      method: "post",
+    },
+
+    /** Update an annotation review **/
+    updateReview: {
+      path: "/../reviews/:reviewID",
+      method: "patch",
+    },
+
+    /** Delete an annotation review **/
+    deleteReview: {
+      path: "/../reviews/:reviewID",
+      method: "delete",
+    },
+
+    /** Get task position in project **/
+    taskPosition: "/../projects/:projectId/task-position",
   },
 };

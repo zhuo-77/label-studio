@@ -8,7 +8,7 @@ import {
   DEFAULT_PANEL_WIDTH,
   PANEL_HEADER_HEIGHT,
 } from "../constants";
-import { Comments, Custom, History, Info, Relations } from "../DetailsPanel/DetailsPanel";
+import { Comments, Custom, History, Info, Relations, Reviews } from "../DetailsPanel/DetailsPanel";
 import { OutlinerComponent } from "../OutlinerPanel/OutlinerPanel";
 import type { PanelProps } from "../PanelBase";
 import {
@@ -169,6 +169,7 @@ export const panelComponents: { [key: string]: FC<PanelProps> } = {
   history: History as FC<PanelProps>,
   relations: Relations as FC<PanelProps>,
   comments: Comments as FC<PanelProps>,
+  reviews: Reviews as FC<PanelProps>,
   info: Info as FC<PanelProps>,
   custom: Custom as FC<PanelProps>,
 };
@@ -206,6 +207,12 @@ const panelViews = [
     active: false,
   },
   {
+    name: "reviews",
+    title: "Reviews",
+    component: panelComponents.reviews as FC<PanelProps>,
+    active: false,
+  },
+  {
     name: "custom",
     title: "Custom",
     component: panelComponents.custom as FC<PanelProps>,
@@ -214,10 +221,10 @@ const panelViews = [
 ];
 
 // Custom tab for special tags; will be placed in "regions-relations" panel by default
-const customPanelView = panelViews[5];
+const customPanelView = panelViews[6];
 
 export const enterprisePanelDefault: Record<string, PanelBBox> = {
-  "info-comments-history": {
+  "info-comments-reviews-history": {
     order: 1,
     top: 0,
     left: 0,
@@ -230,7 +237,7 @@ export const enterprisePanelDefault: Record<string, PanelBBox> = {
     detached: false,
     alignment: Side.right,
     maxHeight: DEFAULT_PANEL_MAX_HEIGHT,
-    panelViews: [panelViews[3], panelViews[4], panelViews[1]],
+    panelViews: [panelViews[3], panelViews[4], panelViews[5], panelViews[1]],
   },
   "regions-relations": {
     order: 2,
@@ -250,7 +257,7 @@ export const enterprisePanelDefault: Record<string, PanelBBox> = {
 };
 
 export const openSourcePanelDefault: Record<string, PanelBBox> = {
-  "info-history": {
+  "info-reviews-history": {
     order: 1,
     top: 0,
     left: 0,
@@ -263,7 +270,7 @@ export const openSourcePanelDefault: Record<string, PanelBBox> = {
     detached: false,
     alignment: Side.right,
     maxHeight: DEFAULT_PANEL_MAX_HEIGHT,
-    panelViews: [panelViews[3], panelViews[1]],
+    panelViews: [panelViews[3], panelViews[5], panelViews[1]],
   },
   "regions-relations": {
     order: 2,

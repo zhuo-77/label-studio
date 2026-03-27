@@ -44,6 +44,36 @@
     user-select: none;
   }
 
+  &__project-progress {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 2px;
+  }
+
+  &__project-progress-text {
+    @apply text-body-smaller;
+    color: var(--color-neutral-content);
+    font-weight: 500;
+    white-space: nowrap;
+    font-size: 11px;
+  }
+
+  &__progress-bar {
+    width: 60px;
+    height: 4px;
+    background: var(--color-neutral-border);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  &__progress-bar-fill {
+    height: 100%;
+    background: var(--color-primary-border);
+    border-radius: 2px;
+    transition: width 0.3s ease;
+  }
+
   &__history-controls {
     display: flex;
     grid-area: buttons;

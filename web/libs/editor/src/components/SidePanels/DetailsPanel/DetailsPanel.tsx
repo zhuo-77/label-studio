@@ -2,6 +2,7 @@ import { inject, observer } from "mobx-react";
 import type { FC } from "react";
 import { cn } from "../../../utils/bem";
 import { Comments as CommentsComponent } from "../../Comments/Comments";
+import { ReviewPanel } from "../../ReviewPanel/ReviewPanel";
 import { AnnotationHistory } from "../../CurrentEntity/AnnotationHistory";
 import { PanelBase, type PanelProps } from "../PanelBase";
 import "./DetailsPanel.prefix.css";
@@ -168,6 +169,18 @@ const CustomTab: FC<any> = function CustomTab(): JSX.Element {
   );
 };
 
+const ReviewsTab: FC<any> = inject("store")(
+  observer(function ReviewsTab(): JSX.Element {
+    return (
+      <div className={cn("reviews").toClassName()}>
+        <div className={cn("reviews").elem("section-tab").toClassName()}>
+          <ReviewPanel />
+        </div>
+      </div>
+    );
+  }),
+);
+
 const GeneralPanel: FC<any> = inject("store")(
   observer(function GeneralPanel({ store, currentEntity }: any): JSX.Element {
     const { relationStore } = currentEntity;
@@ -233,5 +246,6 @@ export const History = HistoryTab;
 export const Relations = RelationsTab;
 export const Info = InfoTab;
 export const Custom = CustomTab;
+export const Reviews = ReviewsTab;
 export const Details = observer(DetailsComponent);
 export const DetailsPanel = observer(DetailsPanelComponent);

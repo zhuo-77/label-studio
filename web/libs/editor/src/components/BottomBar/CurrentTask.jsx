@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { observer } from "mobx-react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Button, IconChevronLeft, IconChevronRight, Tooltip } from "@humansignal/ui";
 import { cn } from "../../utils/bem";
 import { FF_DEV_4174, FF_LEAP_1173, FF_TASK_COUNT_FIX, isFF } from "../../utils/feature-flags";
@@ -19,6 +19,30 @@ export const CurrentTask = observer(({ store }) => {
 
   const [initialCommentLength, setInitialCommentLength] = useState(0);
   const [visibleComments, setVisibleComments] = useState(0);
+  const [projectPosition, setProjectPosition] = useState(null);
+  const [projectTotal, setProjectTotal] = useState(null);
+
+  // Fetch task position within project for global progress indicator
+  const fetchTaskPosition = useCallback(async () => {
+    const projectId = store.task?.project?.id ?? store.project?.id;
+    const taskId = store.task?.id;
+    if (!projectId || !taskId) return;
+
+    try {
+      const response = await fetch(`/api/projects/${projectId}/task-position/?task_id=${taskId}`);
+      if (response.ok) {
+        const data = await response.json();
+        setProjectPosition(data.position);
+        setProjectTotal(data.total);
+      }
+    } catch (e) {
+      // Silently fail - progress indicator is informational
+    }
+  }, [store.task?.id, store.task?.project?.id, store.project?.id]);
+
+  useEffect(() => {
+    fetchTaskPosition();
+  }, [fetchTaskPosition]);
 
   useEffect(() => {
     store.commentStore.setAddedCommentThisSession(false);
@@ -96,11 +120,31 @@ export const CurrentTask = observer(({ store }) => {
     canPostpone = canPostpone && store.commentStore.addedCommentThisSession && visibleComments >= initialCommentLength;
   }
 
+  // Calculate progress percentage for the progress bar
+  const progressPercent =
+    projectPosition != null && projectTotal != null && projectTotal > 0
+      ? Math.round((projectPosition / projectTotal) * 100)
+      : null;
+
   return (
     <div className={cn("bottombar").elem("section").toClassName()}>
       <div className={cn("current-task").mod({ "with-history": historyEnabled }).toClassName()}>
         <div className={cn("current-task").elem("task-id").toClassName()}>
           {store.task.id ?? guidGenerator()}
+          {/* Always show project-level progress indicator when available */}
+          {projectPosition != null && projectTotal != null && (
+            <div className={cn("current-task").elem("project-progress").toClassName()}>
+              <span className={cn("current-task").elem("project-progress-text").toClassName()}>
+                {projectPosition}/{projectTotal}
+              </span>
+              <div className={cn("current-task").elem("progress-bar").toClassName()}>
+                <div
+                  className={cn("current-task").elem("progress-bar-fill").toClassName()}
+                  style={{ width: `${progressPercent}%` }}
+                />
+              </div>
+            </div>
+          )}
           {historyEnabled &&
             showCounter &&
             (isFF(FF_TASK_COUNT_FIX) ? (
