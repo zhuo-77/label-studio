@@ -9,6 +9,7 @@ interface Review {
   annotation: number;
   created_by: number;
   created_by_username: string;
+  display_name: string;
   text: string;
   is_resolved: boolean;
   created_at: string;
@@ -171,7 +172,7 @@ const ReviewPanelComponent: FC<ReviewPanelProps> = ({ store }) => {
             >
               <div className={cn("review-panel").elem("item-header").toClassName()}>
                 <span className={cn("review-panel").elem("item-author").toClassName()}>
-                  {review.created_by_username.split(",")[0].trim() || `User #${review.created_by}`}
+                  {review.display_name || `User #${review.created_by}`}
                 </span>
                 <span className={cn("review-panel").elem("item-time").toClassName()}>
                   {formatTimeAgo(review.created_at)}

@@ -886,7 +886,8 @@ class AnnotationDraftSerializer(ModelSerializer):
 class AnnotationReviewSerializer(ModelSerializer):
     """Serializer for annotation reviews (code-review style feedback)."""
 
-    created_by_username = serializers.SerializerMethodField(read_only=True, help_text='Reviewer username')
+    created_by_username = serializers.SerializerMethodField(read_only=True, help_text='Reviewer full username string')
+    display_name = serializers.SerializerMethodField(read_only=True, help_text='Reviewer display name')
 
     def get_created_by_username(self, review) -> str:
         user = review.created_by
@@ -898,12 +899,24 @@ class AnnotationReviewSerializer(ModelSerializer):
         name += f' {user.email}, {user.id}'
         return name
 
+    def get_display_name(self, review) -> str:
+        user = review.created_by
+        if not user:
+            return ''
+        name = user.first_name
+        if user.last_name:
+            name = name + ' ' + user.last_name
+        return name.strip() or user.email
+
     class Meta:
         from tasks.models import AnnotationReview
 
         model = AnnotationReview
-        fields = ['id', 'annotation', 'created_by', 'created_by_username', 'text', 'is_resolved', 'created_at', 'updated_at']
-        read_only_fields = ['id', 'created_by', 'created_by_username', 'created_at', 'updated_at']
+        fields = [
+            'id', 'annotation', 'created_by', 'created_by_username', 'display_name',
+            'text', 'is_resolved', 'created_at', 'updated_at',
+        ]
+        read_only_fields = ['id', 'created_by', 'created_by_username', 'display_name', 'created_at', 'updated_at']
 
 
 class TaskWithAnnotationsAndPredictionsAndDraftsSerializer(TaskSerializer):

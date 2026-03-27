@@ -36,7 +36,7 @@ export const CurrentTask = observer(({ store }) => {
         setProjectTotal(data.total);
       }
     } catch (e) {
-      // Silently fail - progress indicator is informational
+      console.warn("Failed to fetch task position:", e);
     }
   }, [store.task?.id, store.task?.project?.id, store.project?.id]);
 
