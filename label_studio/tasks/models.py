@@ -148,6 +148,13 @@ class Task(TaskMixin, FsmHistoryStateModel):
         help_text='Average agreement score for the task',
     )
 
+    unresolved_review_count = models.IntegerField(
+        _('unresolved review count'),
+        default=0,
+        db_index=True,
+        help_text='Number of unresolved annotation reviews in the task',
+    )
+
     comment_count = models.IntegerField(
         _('comment count'),
         default=0,
@@ -1614,3 +1621,49 @@ def bulk_update_stats_project_tasks(tasks, project=None):
 
 Q_finished_annotations = Q(was_cancelled=False) & Q(result__isnull=False)
 Q_task_finished_annotations = Q(annotations__was_cancelled=False) & Q(annotations__result__isnull=False)
+
+
+class AnnotationReview(models.Model):
+    """Independent review/feedback for annotations, similar to code review comments.
+
+    Any user with project access can create reviews on annotations.
+    The annotator (completed_by) can then resolve reviews by marking them as resolved.
+    """
+
+    annotation = models.ForeignKey(
+        'tasks.Annotation',
+        on_delete=models.CASCADE,
+        related_name='reviews',
+        help_text='The annotation being reviewed',
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='annotation_reviews',
+        help_text='User who created the review',
+    )
+    text = models.TextField(
+        _('review text'),
+        help_text='Review comment text',
+    )
+    is_resolved = models.BooleanField(
+        _('is resolved'),
+        default=False,
+        db_index=True,
+        help_text='Whether this review has been resolved by the annotator',
+    )
+    created_at = models.DateTimeField(_('created at'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('updated at'), auto_now=True)
+
+    class Meta:
+        db_table = 'annotation_review'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['annotation', 'is_resolved']),
+        ]
+
+    def __str__(self):
+        return f'Review #{self.id} on Annotation #{self.annotation_id} by {self.created_by}'
+
+    def has_permission(self, user):
+        return self.annotation.task.project.has_permission(user)

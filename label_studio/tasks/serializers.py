@@ -25,7 +25,7 @@ from rest_framework.fields import SkipField
 from rest_framework.serializers import ModelSerializer
 from rest_framework.settings import api_settings
 from tasks.exceptions import AnnotationDuplicateError
-from tasks.models import Annotation, AnnotationDraft, Prediction, PredictionMeta, Task
+from tasks.models import Annotation, AnnotationDraft, AnnotationReview, Prediction, PredictionMeta, Task
 from tasks.validation import TaskValidator
 from users.models import User
 from users.serializers import UserSerializer
@@ -881,6 +881,29 @@ class AnnotationDraftSerializer(ModelSerializer):
     class Meta:
         model = AnnotationDraft
         fields = '__all__'
+
+
+class AnnotationReviewSerializer(ModelSerializer):
+    """Serializer for annotation reviews (code-review style feedback)."""
+
+    created_by_username = serializers.SerializerMethodField(read_only=True, help_text='Reviewer username')
+
+    def get_created_by_username(self, review) -> str:
+        user = review.created_by
+        if not user:
+            return ''
+        name = user.first_name
+        if user.last_name:
+            name = name + ' ' + user.last_name
+        name += f' {user.email}, {user.id}'
+        return name
+
+    class Meta:
+        from tasks.models import AnnotationReview
+
+        model = AnnotationReview
+        fields = ['id', 'annotation', 'created_by', 'created_by_username', 'text', 'is_resolved', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'created_by', 'created_by_username', 'created_at', 'updated_at']
 
 
 class TaskWithAnnotationsAndPredictionsAndDraftsSerializer(TaskSerializer):

@@ -24,7 +24,7 @@ from rest_framework import generics, viewsets
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
-from tasks.models import Annotation, AnnotationDraft, Prediction, Task
+from tasks.models import Annotation, AnnotationDraft, AnnotationReview, Prediction, Task
 from tasks.openapi_schema import (
     annotation_request_schema,
     annotation_response_example,
@@ -36,6 +36,7 @@ from tasks.openapi_schema import (
 )
 from tasks.serializers import (
     AnnotationDraftSerializer,
+    AnnotationReviewSerializer,
     AnnotationSerializer,
     PredictionSerializer,
     TaskSerializer,
@@ -1101,3 +1102,181 @@ class AnnotationConvertAPI(generics.RetrieveAPIView):
         emit_webhooks_for_instance(organization, project, WebhookAction.ANNOTATIONS_DELETED, [pk])
         data = AnnotationDraftSerializer(instance=draft).data
         return Response(status=201, data=data)
+
+
+@method_decorator(
+    name='get',
+    decorator=extend_schema(
+        tags=['Annotations'],
+        summary='List annotation reviews',
+        description='List all reviews for a specific annotation.',
+        parameters=[
+            OpenApiParameter(name='id', type=OpenApiTypes.INT, location='path', description='Annotation ID'),
+        ],
+        extensions={
+            'x-fern-audiences': ['internal'],
+        },
+    ),
+)
+@method_decorator(
+    name='post',
+    decorator=extend_schema(
+        tags=['Annotations'],
+        summary='Create annotation review',
+        description='Create a new review for an annotation. Any user with project access can create reviews.',
+        parameters=[
+            OpenApiParameter(name='id', type=OpenApiTypes.INT, location='path', description='Annotation ID'),
+        ],
+        extensions={
+            'x-fern-audiences': ['internal'],
+        },
+    ),
+)
+class AnnotationReviewListAPI(GetParentObjectMixin, generics.ListCreateAPIView):
+    """List and create reviews for a specific annotation."""
+
+    parser_classes = (JSONParser, FormParser, MultiPartParser)
+    permission_required = ViewClassPermission(
+        GET=all_permissions.annotations_view,
+        POST=all_permissions.annotations_view,
+    )
+    parent_queryset = Annotation.objects.all()
+    serializer_class = AnnotationReviewSerializer
+
+    def get_queryset(self):
+        return AnnotationReview.objects.filter(annotation_id=self.kwargs.get('pk', 0))
+
+    def perform_create(self, serializer):
+        annotation = self.parent_object
+        review = serializer.save(
+            annotation=annotation,
+            created_by=self.request.user,
+        )
+        # Update unresolved review count on the task
+        task = annotation.task
+        task.unresolved_review_count = AnnotationReview.objects.filter(
+            annotation__task=task,
+            is_resolved=False,
+        ).count()
+        task.save(update_fields=['unresolved_review_count'])
+        return review
+
+
+@method_decorator(
+    name='get',
+    decorator=extend_schema(
+        tags=['Annotations'],
+        summary='Get annotation review',
+        description='Get a specific review by ID.',
+        extensions={
+            'x-fern-audiences': ['internal'],
+        },
+    ),
+)
+@method_decorator(
+    name='patch',
+    decorator=extend_schema(
+        tags=['Annotations'],
+        summary='Update annotation review',
+        description='Update a review (e.g., mark as resolved or edit text).',
+        extensions={
+            'x-fern-audiences': ['internal'],
+        },
+    ),
+)
+@method_decorator(
+    name='delete',
+    decorator=extend_schema(
+        tags=['Annotations'],
+        summary='Delete annotation review',
+        description='Delete a review.',
+        extensions={
+            'x-fern-audiences': ['internal'],
+        },
+    ),
+)
+class AnnotationReviewDetailAPI(generics.RetrieveUpdateDestroyAPIView):
+    """Retrieve, update or delete a specific annotation review."""
+
+    parser_classes = (JSONParser, FormParser, MultiPartParser)
+    permission_required = ViewClassPermission(
+        GET=all_permissions.annotations_view,
+        PUT=all_permissions.annotations_change,
+        PATCH=all_permissions.annotations_change,
+        DELETE=all_permissions.annotations_delete,
+    )
+    serializer_class = AnnotationReviewSerializer
+    queryset = AnnotationReview.objects.all()
+
+    def perform_update(self, serializer):
+        instance = serializer.save()
+        # Update unresolved review count on the task
+        task = instance.annotation.task
+        task.unresolved_review_count = AnnotationReview.objects.filter(
+            annotation__task=task,
+            is_resolved=False,
+        ).count()
+        task.save(update_fields=['unresolved_review_count'])
+
+    def perform_destroy(self, instance):
+        task = instance.annotation.task
+        instance.delete()
+        # Update unresolved review count on the task
+        task.unresolved_review_count = AnnotationReview.objects.filter(
+            annotation__task=task,
+            is_resolved=False,
+        ).count()
+        task.save(update_fields=['unresolved_review_count'])
+
+
+@extend_schema(
+    tags=['Projects'],
+    summary='Get task position in project',
+    description='Get the position of a task within its project and total task count.',
+    parameters=[
+        OpenApiParameter(name='project_id', type=OpenApiTypes.INT, location='path', description='Project ID'),
+        OpenApiParameter(name='task_id', type=OpenApiTypes.INT, location='query', description='Task ID'),
+    ],
+    responses={
+        '200': OpenApiResponse(
+            description='Task position info',
+            examples=[
+                OpenApiExample(
+                    name='response',
+                    value={'position': 5, 'total': 2000, 'project_id': 1},
+                    media_type='application/json',
+                )
+            ],
+        )
+    },
+    extensions={
+        'x-fern-audiences': ['internal'],
+    },
+)
+class TaskPositionAPI(generics.GenericAPIView):
+    """Get the position of a task within a project."""
+
+    permission_required = ViewClassPermission(GET=all_permissions.tasks_view)
+
+    def get(self, request, project_id):
+        project = generics.get_object_or_404(
+            Project.objects.filter(organization=request.user.active_organization),
+            pk=project_id,
+        )
+        task_id = request.query_params.get('task_id')
+        total = project.tasks.count()
+
+        position = None
+        if task_id:
+            try:
+                task_id = int(task_id)
+                # Count tasks with ID less than or equal to this task (ordered by ID)
+                position = project.tasks.filter(id__lte=task_id).count()
+            except (ValueError, TypeError):
+                pass
+
+        return Response({
+            'position': position,
+            'total': total,
+            'project_id': project_id,
+        })

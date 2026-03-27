@@ -28,6 +28,11 @@ _api_urlpatterns = [
 _api_annotations_urlpatterns = [
     path('<int:pk>/', api.AnnotationAPI.as_view(), name='annotation-detail'),
     path('<int:pk>/convert-to-draft', api.AnnotationConvertAPI.as_view(), name='annotation-convert-to-draft'),
+    path('<int:pk>/reviews/', api.AnnotationReviewListAPI.as_view(), name='annotation-reviews'),
+]
+
+_api_reviews_urlpatterns = [
+    path('<int:pk>/', api.AnnotationReviewDetailAPI.as_view(), name='review-detail'),
 ]
 
 _api_drafts_urlpatterns = [
@@ -36,11 +41,17 @@ _api_drafts_urlpatterns = [
 
 _api_predictions_urlpatterns = router.urls
 
+_api_project_urlpatterns = [
+    path('<int:project_id>/task-position/', api.TaskPositionAPI.as_view(), name='task-position'),
+]
+
 
 urlpatterns = [
     path('api/tasks/', include((_api_urlpatterns, app_name), namespace='api')),
     # TODO: these should be moved to the separate apps
     path('api/annotations/', include((_api_annotations_urlpatterns, app_name), namespace='api-annotations')),
+    path('api/reviews/', include((_api_reviews_urlpatterns, app_name), namespace='api-reviews')),
     path('api/drafts/', include((_api_drafts_urlpatterns, app_name), namespace='api-drafts')),
     path('api/', include((_api_predictions_urlpatterns, app_name), namespace='api-predictions')),
+    path('api/projects/', include((_api_project_urlpatterns, app_name), namespace='api-project-tasks')),
 ]
