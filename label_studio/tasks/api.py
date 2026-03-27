@@ -1221,8 +1221,6 @@ class AnnotationReviewDetailAPI(generics.RetrieveUpdateDestroyAPIView):
     def perform_destroy(self, instance):
         # Only the review creator can delete the review
         if instance.created_by != self.request.user:
-            from rest_framework.exceptions import PermissionDenied
-
             raise PermissionDenied('Only the review creator can delete this review.')
         task = instance.annotation.task
         instance.delete()
