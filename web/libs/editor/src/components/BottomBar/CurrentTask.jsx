@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { observer } from "mobx-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { getEnv } from "mobx-state-tree";
 import { Button, IconChevronLeft, IconChevronRight, Tooltip } from "@humansignal/ui";
 import { cn } from "../../utils/bem";
 import { FF_DEV_4174, FF_LEAP_1173, FF_TASK_COUNT_FIX, isFF } from "../../utils/feature-flags";
@@ -21,6 +22,9 @@ export const CurrentTask = observer(({ store }) => {
   const [visibleComments, setVisibleComments] = useState(0);
   const [projectPosition, setProjectPosition] = useState(null);
   const [projectTotal, setProjectTotal] = useState(null);
+  const [isEditingPosition, setIsEditingPosition] = useState(false);
+  const [positionInput, setPositionInput] = useState("");
+  const positionInputRef = useRef(null);
 
   // Fetch task position within project for global progress indicator
   const fetchTaskPosition = useCallback(async () => {
@@ -43,6 +47,49 @@ export const CurrentTask = observer(({ store }) => {
   useEffect(() => {
     fetchTaskPosition();
   }, [fetchTaskPosition]);
+
+  // Jump to a specific position in the project
+  const jumpToPosition = useCallback(async (targetPosition) => {
+    const projectId = store.task?.project?.id ?? store.project?.id;
+    if (!projectId) return;
+
+    const pos = parseInt(targetPosition, 10);
+    if (isNaN(pos) || pos < 1 || (projectTotal && pos > projectTotal)) return;
+
+    try {
+      const response = await fetch(
+        `/api/projects/${projectId}/task-position/?position=${pos}`,
+      );
+      if (response.ok) {
+        const data = await response.json();
+        if (data.target_task_id) {
+          getEnv(store).events.invoke("nextTask", data.target_task_id, null);
+        }
+      }
+    } catch (e) {
+      console.warn("Failed to jump to position:", e);
+    }
+  }, [store, store.task?.project?.id, store.project?.id, projectTotal]);
+
+  const handlePositionClick = useCallback(() => {
+    setIsEditingPosition(true);
+    setPositionInput(String(projectPosition ?? ""));
+    setTimeout(() => positionInputRef.current?.select(), 0);
+  }, [projectPosition]);
+
+  const handlePositionKeyDown = useCallback((e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      setIsEditingPosition(false);
+      jumpToPosition(positionInput);
+    } else if (e.key === "Escape") {
+      setIsEditingPosition(false);
+    }
+  }, [positionInput, jumpToPosition]);
+
+  const handlePositionBlur = useCallback(() => {
+    setIsEditingPosition(false);
+  }, []);
 
   useEffect(() => {
     store.commentStore.setAddedCommentThisSession(false);
@@ -134,9 +181,31 @@ export const CurrentTask = observer(({ store }) => {
           {/* Always show project-level progress indicator when available */}
           {projectPosition != null && projectTotal != null && (
             <div className={cn("current-task").elem("project-progress").toClassName()}>
-              <span className={cn("current-task").elem("project-progress-text").toClassName()}>
-                {projectPosition}/{projectTotal}
-              </span>
+              {isEditingPosition ? (
+                <span className={cn("current-task").elem("project-progress-text").toClassName()}>
+                  <input
+                    ref={positionInputRef}
+                    className={cn("current-task").elem("position-input").toClassName()}
+                    type="number"
+                    min={1}
+                    max={projectTotal}
+                    value={positionInput}
+                    onChange={(e) => setPositionInput(e.target.value)}
+                    onKeyDown={handlePositionKeyDown}
+                    onBlur={handlePositionBlur}
+                  />
+                  /{projectTotal}
+                </span>
+              ) : (
+                <Tooltip title="Click to jump to a position">
+                  <span
+                    className={cn("current-task").elem("project-progress-text").mod({ clickable: true }).toClassName()}
+                    onClick={handlePositionClick}
+                  >
+                    {projectPosition}/{projectTotal}
+                  </span>
+                </Tooltip>
+              )}
               <div className={cn("current-task").elem("progress-bar").toClassName()}>
                 <div
                   className={cn("current-task").elem("progress-bar-fill").toClassName()}

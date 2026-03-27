@@ -2,12 +2,14 @@ import unittest
 from unittest.mock import patch
 
 from core.feature_flags import flag_set
+from organizations.models import OrganizationMember
 from organizations.tests.factories import OrganizationFactory
 from projects.models import Project
 from projects.tests.factories import ProjectFactory
 from rest_framework.test import APITestCase
 from tasks.tests.factories import AnnotationFactory, PredictionFactory, TaskFactory
 from tests.utils import mock_feature_flag
+from users.tests.factories import UserFactory
 
 
 class TestTaskAPI(APITestCase):
@@ -711,7 +713,7 @@ class TestAnnotationReviewAPI(APITestCase):
         assert task.unresolved_review_count == 0
 
     def test_delete_review(self):
-        """Test deleting a review."""
+        """Test deleting a review by the creator."""
         task = TaskFactory(project=self.project, data={'text': 'test'})
         annotation = AnnotationFactory(task=task, project=self.project, completed_by=self.user)
 
@@ -732,6 +734,49 @@ class TestAnnotationReviewAPI(APITestCase):
         # Check task count updated
         task.refresh_from_db()
         assert task.unresolved_review_count == 0
+
+    def test_delete_review_by_non_creator_forbidden(self):
+        """Test that a user who did not create the review cannot delete it."""
+        task = TaskFactory(project=self.project, data={'text': 'test'})
+        annotation = AnnotationFactory(task=task, project=self.project, completed_by=self.user)
+
+        # Create a review as self.user
+        self.client.force_authenticate(user=self.user)
+        response = self.client.post(
+            f'/api/annotations/{annotation.id}/reviews/',
+            data={'text': 'Needs fix', 'annotation': annotation.id},
+            format='json',
+        )
+        review_id = response.json()['id']
+
+        # Create another user in the same organization
+        other_user = UserFactory(active_organization=self.organization)
+
+        # Try to delete the review as the other user
+        self.client.force_authenticate(user=other_user)
+        response = self.client.delete(f'/api/reviews/{review_id}/')
+        assert response.status_code == 403
+
+    def test_delete_own_review_by_another_user(self):
+        """Test that a user can delete their own review."""
+        task = TaskFactory(project=self.project, data={'text': 'test'})
+        annotation = AnnotationFactory(task=task, project=self.project, completed_by=self.user)
+
+        # Create another user in the same organization
+        other_user = UserFactory(active_organization=self.organization)
+
+        # Create a review as other_user
+        self.client.force_authenticate(user=other_user)
+        response = self.client.post(
+            f'/api/annotations/{annotation.id}/reviews/',
+            data={'text': 'Other user review', 'annotation': annotation.id},
+            format='json',
+        )
+        review_id = response.json()['id']
+
+        # Delete the review as the same other_user (creator)
+        response = self.client.delete(f'/api/reviews/{review_id}/')
+        assert response.status_code == 204
 
 
 class TestTaskPositionAPI(APITestCase):
@@ -773,3 +818,63 @@ class TestTaskPositionAPI(APITestCase):
         data = response.json()
         assert data['total'] == 2
         assert data['position'] is None
+
+    def test_jump_to_position(self):
+        """Test getting a task ID by its position in the project."""
+        task1 = TaskFactory(project=self.project, data={'text': 'first'})
+        task2 = TaskFactory(project=self.project, data={'text': 'second'})
+        task3 = TaskFactory(project=self.project, data={'text': 'third'})
+
+        # Tasks are ordered by ID, so position 1 = task1, 2 = task2, 3 = task3
+        sorted_tasks = sorted([task1, task2, task3], key=lambda t: t.id)
+
+        self.client.force_authenticate(user=self.user)
+
+        # Jump to position 1
+        response = self.client.get(
+            f'/api/projects/{self.project.id}/task-position/',
+            {'position': 1},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data['target_task_id'] == sorted_tasks[0].id
+
+        # Jump to position 2
+        response = self.client.get(
+            f'/api/projects/{self.project.id}/task-position/',
+            {'position': 2},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data['target_task_id'] == sorted_tasks[1].id
+
+        # Jump to position 3
+        response = self.client.get(
+            f'/api/projects/{self.project.id}/task-position/',
+            {'position': 3},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data['target_task_id'] == sorted_tasks[2].id
+
+    def test_jump_to_invalid_position(self):
+        """Test that invalid positions return null target_task_id."""
+        TaskFactory(project=self.project, data={'text': 'test1'})
+
+        self.client.force_authenticate(user=self.user)
+
+        # Position 0 (out of range)
+        response = self.client.get(
+            f'/api/projects/{self.project.id}/task-position/',
+            {'position': 0},
+        )
+        assert response.status_code == 200
+        assert response.json()['target_task_id'] is None
+
+        # Position beyond total
+        response = self.client.get(
+            f'/api/projects/{self.project.id}/task-position/',
+            {'position': 999},
+        )
+        assert response.status_code == 200
+        assert response.json()['target_task_id'] is None

@@ -1219,6 +1219,11 @@ class AnnotationReviewDetailAPI(generics.RetrieveUpdateDestroyAPIView):
         task.save(update_fields=['unresolved_review_count'])
 
     def perform_destroy(self, instance):
+        # Only the review creator can delete the review
+        if instance.created_by != self.request.user:
+            from rest_framework.exceptions import PermissionDenied
+
+            raise PermissionDenied('Only the review creator can delete this review.')
         task = instance.annotation.task
         instance.delete()
         # Update unresolved review count on the task
@@ -1264,9 +1269,12 @@ class TaskPositionAPI(generics.GenericAPIView):
             pk=project_id,
         )
         task_id = request.query_params.get('task_id')
+        target_position = request.query_params.get('position')
         total = project.tasks.count()
 
         position = None
+        target_task_id = None
+
         if task_id:
             try:
                 task_id = int(task_id)
@@ -1275,8 +1283,20 @@ class TaskPositionAPI(generics.GenericAPIView):
             except (ValueError, TypeError):
                 pass
 
+        # If a target position is provided, find the task at that position
+        if target_position:
+            try:
+                target_position = int(target_position)
+                if 1 <= target_position <= total:
+                    # Get the task at the given position (1-indexed), ordered by ID
+                    task_at_position = project.tasks.order_by('id')[target_position - 1]
+                    target_task_id = task_at_position.id
+            except (ValueError, TypeError, IndexError):
+                pass
+
         return Response({
             'position': position,
             'total': total,
             'project_id': project_id,
+            'target_task_id': target_task_id,
         })

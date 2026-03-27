@@ -27,6 +27,8 @@ const ReviewPanelComponent: FC<ReviewPanelProps> = ({ store }) => {
   const [submitting, setSubmitting] = useState(false);
   const [filterUnresolved, setFilterUnresolved] = useState(false);
 
+  const currentUserId = store?.user?.id ?? (window as any).APP_SETTINGS?.user?.id ?? null;
+
   const annotationStore = store?.annotationStore;
   const selected = annotationStore?.selected;
   const annotationId = selected?.pk;
@@ -188,9 +190,11 @@ const ReviewPanelComponent: FC<ReviewPanelProps> = ({ store }) => {
                 >
                   {review.is_resolved ? "Reopen" : "Resolve"}
                 </Button>
-                <Button look="string" size="small" variant="neutral" onClick={() => handleDeleteReview(review.id)}>
-                  Delete
-                </Button>
+                {currentUserId != null && review.created_by === currentUserId && (
+                  <Button look="string" size="small" variant="neutral" onClick={() => handleDeleteReview(review.id)}>
+                    Delete
+                  </Button>
+                )}
               </div>
             </div>
           ))

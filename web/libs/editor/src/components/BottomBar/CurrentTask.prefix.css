@@ -57,6 +57,35 @@
     font-weight: 500;
     white-space: nowrap;
     font-size: 11px;
+
+    &_clickable {
+      cursor: pointer;
+
+      &:hover {
+        color: var(--color-primary-content);
+        text-decoration: underline;
+      }
+    }
+  }
+
+  &__position-input {
+    width: 40px;
+    border: 1px solid var(--color-primary-border);
+    border-radius: 3px;
+    padding: 0 2px;
+    font-size: 11px;
+    font-weight: 500;
+    text-align: center;
+    color: var(--color-neutral-content);
+    background: var(--color-neutral-surface);
+    outline: none;
+    -moz-appearance: textfield;
+
+    &::-webkit-outer-spin-button,
+    &::-webkit-inner-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
   }
 
   &__progress-bar {
