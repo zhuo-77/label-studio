@@ -278,6 +278,24 @@ def get_all_columns(project, *_):
             'visibility_defaults': {'explore': False, 'labeling': False},
             'project_defined': False,
         },
+        {
+            'id': 'annotation_result_qa_comment',
+            'title': 'QA Comment',
+            'type': 'String',
+            'target': 'tasks',
+            'help': 'QA comment text from annotation results (from_name=qa_comment, type=textarea)',
+            'visibility_defaults': {'explore': False, 'labeling': False},
+            'project_defined': False,
+        },
+        {
+            'id': 'annotation_result_appeal',
+            'title': 'Appeal',
+            'type': 'String',
+            'target': 'tasks',
+            'help': 'Appeal text from annotation results (from_name=appeal, type=textarea)',
+            'visibility_defaults': {'explore': False, 'labeling': False},
+            'project_defined': False,
+        },
     ]
 
     result['columns'].append(data_root)

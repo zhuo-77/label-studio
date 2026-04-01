@@ -3,7 +3,7 @@ import { Button } from "@humansignal/ui";
 
 const SCORE_FILTER_ID = "filter:tasks:annotation_result_score";
 const SCORE_OPERATOR = "less";
-const SCORE_THRESHOLD = 60;
+const SCORE_THRESHOLD = 5;
 
 const injector = inject(({ store }) => ({
   store,
@@ -39,10 +39,10 @@ export const ScoreFilterButton = injector(
         look={isActive ? "filled" : "outlined"}
         variant={isActive ? "primary" : "neutral"}
         onClick={handleClick}
-        aria-label="Filter tasks with annotation score below 60"
-        tooltip={isActive ? "Remove score < 60 filter" : "Filter tasks with annotation score < 60"}
+        aria-label="Filter tasks with annotation score below 5"
+        tooltip={isActive ? "Remove score < 5 filter" : "Filter tasks with annotation score < 5"}
       >
-        Score &lt; 60
+        Score &lt; 5
       </Button>
     );
   }),
