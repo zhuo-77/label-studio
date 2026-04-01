@@ -269,6 +269,15 @@ def get_all_columns(project, *_):
             'visibility_defaults': {'explore': False, 'labeling': False},
             'project_defined': False,
         },
+        {
+            'id': 'annotation_result_score',
+            'title': 'Annotation Score',
+            'type': 'Number',
+            'target': 'tasks',
+            'help': 'Score value from annotation results (from_name=score, type=number)',
+            'visibility_defaults': {'explore': False, 'labeling': False},
+            'project_defined': False,
+        },
     ]
 
     result['columns'].append(data_root)

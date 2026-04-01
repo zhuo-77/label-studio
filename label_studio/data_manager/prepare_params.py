@@ -120,6 +120,11 @@ class Column(Enum):
     )
     COMMENTS = 'comments', 'Number', 'Number of comments in a task'
     UNRESOLVED_COMMENT_COUNT = 'unresolved_comment_count', 'Number', 'Number of unresolved comments in a task'
+    ANNOTATION_RESULT_SCORE = (
+        'annotation_result_score',
+        'Number',
+        'Score value extracted from annotation results (from_name=score, type=number)',
+    )
 
     def __init__(self, value, value_type, description):
         self._value_ = value

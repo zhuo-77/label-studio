@@ -515,6 +515,33 @@ export const Tab = types
     },
 
     /**
+     * Add a quick filter with specific column, operator, and value
+     * without clearing existing filters.
+     * @param {string} filterId - filter type ID (e.g. "filter:tasks:annotation_result_score")
+     * @param {string} operator - operator key (e.g. "less", "greater", "equal")
+     * @param {*} value - filter value
+     * @returns {boolean} true if the filter was added successfully
+     */
+    addQuickFilter(filterId, operator, value) {
+      const filterType = self.availableFilters.find((f) => f.id === filterId);
+      if (!filterType) return false;
+
+      try {
+        const filter = TabFilter.create({
+          filter: filterId,
+          operator: operator,
+          value: value,
+        });
+        self.filters.push(filter);
+        self.save({ interaction: "filter" });
+        return true;
+      } catch (e) {
+        console.warn("addQuickFilter: failed to create filter", filterId, e);
+        return false;
+      }
+    },
+
+    /**
      * Replace all current filters with those from a pasted snapshot.
      * Validates each item against available columns — columns that don't exist
      * in the current project are silently skipped.
