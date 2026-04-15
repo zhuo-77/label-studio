@@ -745,6 +745,113 @@ def annotate_state(queryset):
     return queryset
 
 
+def annotate_annotation_result_score(queryset):
+    """Extract score value from annotation results.
+
+    The score is stored in annotation results as an element with
+    from_name='score' and type='number', e.g.:
+    {"value": {"number": 60}, "from_name": "score", "type": "number"}
+
+    Uses the latest annotation per task (ORDER BY id DESC LIMIT 1).
+    """
+    from django.db.models.expressions import RawSQL
+    from tasks.models import Annotation
+
+    if settings.DJANGO_DB == settings.DJANGO_DB_SQLITE:
+        score_subquery = Subquery(
+            Annotation.objects.filter(task=OuterRef('pk'))
+            .annotate(
+                _score=RawSQL(
+                    "(SELECT CAST(json_extract(je.value, '$.value.number') AS REAL)"
+                    " FROM json_each(result) AS je"
+                    " WHERE json_extract(je.value, '$.from_name') = 'score'"
+                    " AND json_extract(je.value, '$.type') = 'number'"
+                    ' LIMIT 1)',
+                    [],
+                )
+            )
+            .order_by('-id')
+            .values('_score')[:1],
+            output_field=FloatField(),
+        )
+    else:
+        score_subquery = Subquery(
+            Annotation.objects.filter(task=OuterRef('pk'))
+            .annotate(
+                _score=RawSQL(
+                    "(SELECT (elem->'value'->>'number')::float"
+                    ' FROM jsonb_array_elements(result) AS elem'
+                    " WHERE elem->>'from_name' = 'score'"
+                    " AND elem->>'type' = 'number'"
+                    ' LIMIT 1)',
+                    [],
+                )
+            )
+            .order_by('-id')
+            .values('_score')[:1],
+            output_field=FloatField(),
+        )
+
+    return queryset.annotate(annotation_result_score=score_subquery)
+
+
+def _annotate_annotation_result_textarea(queryset, from_name, annotation_field_name):
+    """Extract a textarea text value from annotation results.
+
+    Textarea results store text as a list in value.text, e.g.:
+    {"value": {"text": ["some text"]}, "from_name": "qa_comment", "type": "textarea"}
+
+    This extracts the first element of the text list from the latest annotation.
+    """
+    from django.db.models.expressions import RawSQL
+    from tasks.models import Annotation
+
+    if settings.DJANGO_DB == settings.DJANGO_DB_SQLITE:
+        text_subquery = Subquery(
+            Annotation.objects.filter(task=OuterRef('pk'))
+            .annotate(
+                _text=RawSQL(
+                    "(SELECT json_extract(je.value, '$.value.text[0]')"
+                    " FROM json_each(result) AS je"
+                    " WHERE json_extract(je.value, '$.from_name') = %s"
+                    " AND json_extract(je.value, '$.type') = 'textarea'"
+                    ' LIMIT 1)',
+                    [from_name],
+                )
+            )
+            .order_by('-id')
+            .values('_text')[:1],
+            output_field=TextField(),
+        )
+    else:
+        text_subquery = Subquery(
+            Annotation.objects.filter(task=OuterRef('pk'))
+            .annotate(
+                _text=RawSQL(
+                    "(SELECT elem->'value'->'text'->>0"
+                    ' FROM jsonb_array_elements(result) AS elem'
+                    " WHERE elem->>'from_name' = %s"
+                    " AND elem->>'type' = 'textarea'"
+                    ' LIMIT 1)',
+                    [from_name],
+                )
+            )
+            .order_by('-id')
+            .values('_text')[:1],
+            output_field=TextField(),
+        )
+
+    return queryset.annotate(**{annotation_field_name: text_subquery})
+
+
+def annotate_annotation_result_qa_comment(queryset):
+    return _annotate_annotation_result_textarea(queryset, 'qa_comment', 'annotation_result_qa_comment')
+
+
+def annotate_annotation_result_appeal(queryset):
+    return _annotate_annotation_result_textarea(queryset, 'appeal', 'annotation_result_appeal')
+
+
 settings.DATA_MANAGER_ANNOTATIONS_MAP = {
     'avg_lead_time': annotate_avg_lead_time,
     'completed_at': annotate_completed_at,
@@ -758,6 +865,9 @@ settings.DATA_MANAGER_ANNOTATIONS_MAP = {
     'draft_exists': annotate_draft_exists,
     'storage_filename': annotate_storage_filename,
     'state': annotate_state,
+    'annotation_result_score': annotate_annotation_result_score,
+    'annotation_result_qa_comment': annotate_annotation_result_qa_comment,
+    'annotation_result_appeal': annotate_annotation_result_appeal,
 }
 
 

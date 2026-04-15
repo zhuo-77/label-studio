@@ -13,6 +13,7 @@ import { LabelButton } from "./LabelButton";
 import { LoadingPossum } from "./LoadingPossum";
 import { OrderButton } from "./OrderButton";
 import { RefreshButton } from "./RefreshButton";
+import { ScoreFilterButton } from "./ScoreFilterButton";
 import { ViewToggle } from "./ViewToggle";
 
 const style = {
@@ -113,5 +114,8 @@ export const instruments = {
         <ExportButton size={size}>Export</ExportButton>
       </Interface>
     );
+  },
+  "score-filter": ({ size }) => {
+    return <ScoreFilterButton size={size} />;
   },
 };
